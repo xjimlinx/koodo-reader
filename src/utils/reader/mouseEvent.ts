@@ -22,11 +22,21 @@ declare var window: any;
 // 翻页滑动动画固定时长（毫秒），需与 kookit 的 PAGE_TURN_DURATION 保持一致
 const PAGE_TURN_DURATION = 200;
 
-// 每次翻页时实时读取，避免修改动画设置后锁延迟不生效
+const getCustomPageTurnInterval = (): number | undefined => {
+  const value = ConfigService.getReaderConfig("pageTurnInterval");
+  if (!value || !value.trim()) return undefined;
+  const interval = Number(value);
+  return Number.isInteger(interval) && interval >= 50 && interval <= 2000
+    ? interval
+    : undefined;
+};
+
+// Read on every turn so interval and animation changes take effect immediately.
 const getThrottleTime = () =>
-  (ConfigService.getReaderConfig("animation") || "none") !== "none"
+  getCustomPageTurnInterval() ??
+  ((ConfigService.getReaderConfig("animation") || "none") !== "none"
     ? PAGE_TURN_DURATION
-    : 100;
+    : 100);
 
 export const getSelection = (book: Book) => {
   let docs = getIframeDoc(book);
@@ -190,11 +200,33 @@ const NAV_TAB_SHORTCUTS: Array<{
 ];
 let lock = false; //prevent from clicking too fasts
 
-// 仿真翻页动画收敛后（kookit 派发 flipend 事件）立即解除锁，
-// 不再等待满 PAGE_TURN_DURATION 的 throttleTime，滚轮/键盘可继续快速翻页
-window.addEventListener("page-flipend", () => {
+let lockVersion = 0;
+let unlockTimer: ReturnType<typeof setTimeout> | undefined;
+
+const lockPageTurn = (): number | undefined => {
+  if (lock) return undefined;
+  lock = true;
+  return ++lockVersion;
+};
+
+const unlockAfterTurn = (version: number) => {
+  // An animation/render event may already have released this turn.
+  if (version !== lockVersion) return;
+  clearTimeout(unlockTimer);
+  unlockTimer = setTimeout(() => {
+    lock = false;
+  }, getThrottleTime());
+};
+
+const unlockOnRender = () => {
+  // Explicit intervals must also be respected across animations and chapters.
+  if (getCustomPageTurnInterval() !== undefined) return;
+  clearTimeout(unlockTimer);
+  ++lockVersion;
   lock = false;
-});
+};
+
+window.addEventListener("page-flipend", unlockOnRender);
 
 const isRevertDirectionReading = (rendition: any) => {
   return (
@@ -414,11 +446,11 @@ export const bindHtmlEvent = (
   doc.addEventListener(
     "keydown",
     async (event) => {
-      if (lock) return;
-      lock = true;
+      const turn = lockPageTurn();
+      if (turn === undefined) return;
       await arrowKeys(rendition, event, readerMode, book);
       handleLocation(key, rendition);
-      setTimeout(() => (lock = false), getThrottleTime());
+      unlockAfterTurn(turn);
     },
     { passive: false }
   );
@@ -454,8 +486,8 @@ export const bindHtmlEvent = (
       ) {
         event.preventDefault();
       }
-      if (lock) return;
-      lock = true;
+      const turn = lockPageTurn();
+      if (turn === undefined) return;
       if (readerMode === "scroll") {
         if (Math.abs(event.deltaX) === 0 && isReadingAidMode(format, key)) {
           // 段落/阅读尺/速读模式内部实际按单页渲染，同样遵循 RTL
@@ -488,7 +520,7 @@ export const bindHtmlEvent = (
         }
       }
       handleLocation(key, rendition);
-      setTimeout(() => (lock = false), getThrottleTime());
+      unlockAfterTurn(turn);
     },
     { passive: false }
   );
@@ -496,11 +528,11 @@ export const bindHtmlEvent = (
   window.addEventListener(
     "keydown",
     async (event) => {
-      if (lock) return;
-      lock = true;
+      const turn = lockPageTurn();
+      if (turn === undefined) return;
       await arrowKeys(rendition, event, readerMode, book);
       handleLocation(key, rendition);
-      setTimeout(() => (lock = false), getThrottleTime());
+      unlockAfterTurn(turn);
     },
     { passive: false }
   );
@@ -511,25 +543,26 @@ export const bindHtmlEvent = (
       if (readerMode === "scroll") {
         return;
       }
-      if (lock || event.pointerType === "mouse") return;
-      lock = true;
+      if (event.pointerType === "mouse") return;
+      const turn = lockPageTurn();
+      if (turn === undefined) return;
       await gesture(rendition, event.type);
       handleLocation(key, rendition);
-      setTimeout(() => (lock = false), getThrottleTime());
+      unlockAfterTurn(turn);
     });
   }
 
   doc.addEventListener(
     "touchend",
     async () => {
-      if (lock) return;
-      lock = true;
+      const turn = lockPageTurn();
+      if (turn === undefined) return;
       if (readerMode === "scroll") {
         await sleep(200);
         await rendition.record();
       }
       handleLocation(key, rendition);
-      setTimeout(() => (lock = false), getThrottleTime());
+      unlockAfterTurn(turn);
     },
     { passive: false }
   );
@@ -558,6 +591,6 @@ export const htmlMouseEvent = (
         renderBookFunc
       );
     }
-    lock = false;
+    unlockOnRender();
   });
 };

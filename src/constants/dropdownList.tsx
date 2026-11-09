@@ -152,6 +152,19 @@ export const dropdownList = [
     isPDF: true,
   },
   {
+    title: "Page turning interval",
+    group: "more",
+    value: "pageTurnInterval",
+    option: [
+      { label: "Default", value: "" },
+      ...[50, 100, 200, 300, 500, 1000].map((interval) => ({
+        label: String(interval),
+        value: String(interval),
+      })),
+    ],
+    isPDF: true,
+  },
+  {
     title: "Action after selecting text",
     group: "more",
     value: "selectAction",

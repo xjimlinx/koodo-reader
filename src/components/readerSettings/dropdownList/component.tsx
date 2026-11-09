@@ -34,6 +34,8 @@ const DropdownList = (props: DropdownListProps) => {
     chineseConversionValue:
       ConfigService.getReaderConfig("convertChinese") || "",
     currentAnimationValue: ConfigService.getReaderConfig("animation") || "none",
+    currentPageTurnIntervalValue:
+      ConfigService.getReaderConfig("pageTurnInterval") || "",
     currentBookLayoutValue: ConfigService.getReaderConfig("bookLayout") || "",
     currentCodeHighlighterValue:
       ConfigService.getReaderConfig("codeHighlight") || "",
@@ -135,6 +137,9 @@ const DropdownList = (props: DropdownListProps) => {
         });
 
         break;
+      case "pageTurnInterval":
+        updateState({ currentPageTurnIntervalValue: value });
+        return;
       case "bookLayout":
         updateState({
           currentBookLayoutValue: arr[0],
@@ -213,17 +218,19 @@ const DropdownList = (props: DropdownListProps) => {
                       ? state.chineseConversionValue
                       : item.value === "animation"
                         ? state.currentAnimationValue
-                        : item.value === "bookLayout"
-                          ? state.currentBookLayoutValue
-                          : item.value === "codeHighlight"
-                            ? state.currentCodeHighlighterValue
-                            : item.value === "textOrientation"
-                              ? state.currentTextOrientationValue
-                              : item.value === "fontFamily"
-                                ? state.currentFontFamilyValue
-                                : item.value === "selectAction"
-                                  ? state.currentSelectActionValue
-                                  : state.currentSubFontFamilyValue
+                        : item.value === "pageTurnInterval"
+                          ? state.currentPageTurnIntervalValue
+                          : item.value === "bookLayout"
+                            ? state.currentBookLayoutValue
+                            : item.value === "codeHighlight"
+                              ? state.currentCodeHighlighterValue
+                              : item.value === "textOrientation"
+                                ? state.currentTextOrientationValue
+                                : item.value === "fontFamily"
+                                  ? state.currentFontFamilyValue
+                                  : item.value === "selectAction"
+                                    ? state.currentSelectActionValue
+                                    : state.currentSubFontFamilyValue
               }
               onChange={(event) => {
                 handleView(event, item.value);
@@ -245,16 +252,20 @@ const DropdownList = (props: DropdownListProps) => {
                     key={index}
                     className="general-setting-option"
                   >
-                    {item.value === "codeHighlight"
-                      ? subItem.value === ""
-                        ? t("Disable")
-                        : subItem.label
-                      : item.value === "fontFamily" ||
-                          item.value === "subFontFamily"
-                        ? subItem.value === "Built-in font"
-                          ? t(subItem.label)
+                    {item.value === "pageTurnInterval" && subItem.value !== ""
+                      ? t("{{milliseconds}} ms", {
+                          milliseconds: subItem.value,
+                        })
+                      : item.value === "codeHighlight"
+                        ? subItem.value === ""
+                          ? t("Disable")
                           : subItem.label
-                        : t(subItem.label)}
+                        : item.value === "fontFamily" ||
+                            item.value === "subFontFamily"
+                          ? subItem.value === "Built-in font"
+                            ? t(subItem.label)
+                            : subItem.label
+                          : t(subItem.label)}
                   </option>
                 )
               )}
